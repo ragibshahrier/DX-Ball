@@ -1,5 +1,6 @@
 #include<bits/stdc++.h>
 # include "iGraphics.h"
+
 // # include "inc.h"
 // # include "paddle.h"
 using namespace std;
@@ -11,9 +12,9 @@ using namespace std;
 #define debugc(a)
 #define debugcc(a)
 #ifdef DEBG
-#define debug(n) cout<<__LINE__<<gp<<#n<<gp<<n<<endl;
-#define debugc(a) cout<<__LINE__<<gp<<#a<<gp<<'['<<gp;for(auto el:a){cout<<el<<gp;}cout<<']'<<endl;
-#define debugcc(a) cout<<__LINE__<<gp<<#a<<gp<<'['<<gp;for(auto el:a){cout<<'{'<<gp<<el.ff<<','<<el.ss<<gp<<'}'<<gp;}cout<<']'<<endl;
+#define debug(n) cout<<__LINE__<<gp<<#n<<gp<<n<<'\n';
+#define debugc(a) cout<<__LINE__<<gp<<#a<<gp<<'['<<gp;for(auto el:a){cout<<el<<gp;}cout<<']'<<'\n';
+#define debugcc(a) cout<<__LINE__<<gp<<#a<<gp<<'['<<gp;for(auto el:a){cout<<'{'<<gp<<el.ff<<','<<el.ss<<gp<<'}'<<gp;}cout<<']'<<'\n';
 #endif
 
 
@@ -22,6 +23,8 @@ const double PI = 3.14159;
 
 #define screenwidth 1280
 #define screenheight 760
+#define basePaddleWidth 150
+#define basePaddleHeight 15
 
 // const double delTime1 = 20;
 const double delTime1 = 15;
@@ -29,10 +32,10 @@ const double delTime1 = 15;
 double frame = 0;
 
 
-std::chrono::time_point<std::chrono::high_resolution_clock> lastTime;
+std::chrono::time_point<std::chrono::high_resolution_clock> lastTimeGlobal;
 time_t currenttime;
 
-int currentState=1;
+int currentState=2;
 int gamePlaying = 0;
 
 
@@ -43,52 +46,61 @@ struct Color{
 		g = green;
 		b = blue;
 
-	}
-	
+	}	
 };
 
 
-vector<vector<int>> level2grid = 
+vector<vector<int>> level1grid = 
 {
 	{1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1},
 	{0,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,1,0},
 	{0,0,1,1,1,1,1,0,0,0,0,0,0,1,1,1,1,1,0,0},
 	{0,0,0,1,1,1,1,1,0,0,0,0,1,1,1,1,1,0,0,0}
 };
-vector<vector<int>> level1grid = 
+vector<vector<int>> level2grid = 
 {
-	{1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1},
+	{0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0},
+	{0,0,0,0,1,1,2,2,1,1,1,2,2,1,1,0,0,0,0,0},
+	{0,0,0,1,1,2,2,2,1,1,1,2,2,2,1,1,0,0,0,0},
+	{0,0,1,1,2,2,2,2,0,0,0,2,2,2,2,1,1,0,0,0},
+	{0,1,1,2,2,1,1,0,0,0,0,0,1,1,2,2,1,1,0,0},
+	{0,1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1,0,0,0}
+};
+
+vector<vector<int>> level3grid = 
+{
+	{1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2},
 	{1,1,3,3,3,1,3,0,3,1,3,3,3,1,3,3,3,1,1,1},
 	{1,1,3,0,3,1,3,0,3,1,3,0,0,1,1,3,1,1,1,1},
 	{1,1,3,3,3,1,3,0,3,1,3,3,3,1,1,3,1,1,1,1},
 	{1,1,3,0,3,1,3,0,3,1,3,0,0,1,1,3,1,1,1,1},
 	{1,1,3,3,3,1,3,3,3,1,3,3,3,1,1,3,1,1,1,1},
-	{1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1}
+	{2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1,2,1}
 };
 
 
 
 Color currentColor;
 
+
 void mySetColor(Color col){
 	iSetColor(col.r, col.g,col.b);
 }
 
-int x = 300, y = 300, r = 20;
-/*
-	function iDraw() is called again and again by the system.
 
-	*/
 
 int reward = 100;
 
 
+
 struct Brick{
-	int posX;
-	int posY;
-	int type;
-	int width;
-	int height;
+	double posX;
+	double posY;
+	int row;
+	int col;
+	int type=1;
+	double width;
+	double height;
 	Color color1;//lower half
 	Color color2;//upper half
 	int health=1;
@@ -112,17 +124,17 @@ struct Brick{
 		switch (type)
 		{
 		case 1:
-			color1 = {178,34,34};
-			color2 = {210,105,30};
+			color1 = {178, 34, 34};
+			color2 = {205, 92, 92};
 			break;
 		
 		case 2:
-			color1 = {178,34,34};
-			color2 = {210,105,30};
+			color1 = {184, 135, 81};
+			color2 = {222, 194, 155};
 			break;
 		
 		case 3:
-			color1 = {255, 223, 63};
+			color1 = {255, 215, 0};
 			color2 = {218, 165, 32};
 			break;
 		
@@ -135,7 +147,8 @@ struct Brick{
 };
 
 vector<Brick>currentBricks;
-vector<Brick>::iterator hitbrick(vector<Brick>::iterator hittedbrick);
+map<pair<int,int>, Brick*>gridToBrickMap;
+vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick);
 
 
 struct Paddle{
@@ -144,8 +157,8 @@ struct Paddle{
 	double initposY = screenheight * 0.1;
 	double posY = screenheight * 0.1;
 
-	double width = 150;
-	double height = 15;
+	double width = basePaddleWidth;
+	double height = basePaddleHeight;
 	Color color = {50,130,255};
 
 	void setInitialPos(){
@@ -174,22 +187,30 @@ struct Paddle{
 
 
 Paddle paddle;
-
+int cc = 0;
 struct Ball{
 
 	double posX;
 	double posY;
 	double radius = 10;
 	bool initSet = 0;
-	// Color color = {255,102,0};
+	Color colorFire = {255,200,0};
 	// Color color = {0,255,128};
-	Color color = {255,255,255};
+	Color colorBase = {255,255,255};
+	Color color = colorBase;
 	pair<double,double> velocity = {0,0};
 	double velocityMag = 0;
 	double velocityAngle = 0;
 	bool launched = 0;
+	int type = 1;
 	
-	// void setColor()
+	void setColor(){
+		if(type==0){
+			color = colorBase;
+		}else{
+			color = colorFire;
+		}
+	}
 	
 	void setInitialPos(){
 		posX = paddle.posX;
@@ -269,6 +290,14 @@ struct Ball{
 	}
 	void checkColWithBrick(){
 		for(auto brit = currentBricks.begin(); brit!=currentBricks.end(); ){
+			if(cc){
+				debug("check")
+				
+			}
+			if(brit->health<=0){
+				// debug(brit->health)
+				brit++;continue;
+			}
 			//brick-left+ball-right
 			if(posX+radius>=brit->posX && posX+radius<=brit->posX+20 && brit->posY - brit->height<=posY && posY<=brit->posY){
 				velocity.first *= -1;
@@ -299,6 +328,9 @@ struct Ball{
 				setVelocity_byxy(velocity.first,velocity.second);
 				posY = brit->posY - brit->height - radius-1;
 				brit = hitbrick(brit);
+				// debug("hit")
+				// debug(currentBricks.size())
+				// cc= 5;
 				continue;
 			}
 
@@ -344,12 +376,33 @@ struct Ball{
 				continue;
 			}
 
-
+			if(cc)debug("check")
 			brit++;
+			// if(cc){
+			// 	debug(brit->row)
+			// 	debug(brit->col)
+				
+			// }
 		}
+		int iii = 0;
+		for(auto it=currentBricks.begin(); it!=currentBricks.end();){
+			iii++;
+			auto itt = it;
+			it++;
+			if(cc)debug(iii)
+			if(itt->health<=0){
+				it = currentBricks.erase(itt);
+			}else{
+				itt->settype();
+				itt->setColor();
+			}
+				
+		}
+		cc = 0;
+		// if(cc)debug("checkout")
 	}
 
-	void changePos(){
+	void changePos(double deltime){
 		if(launched){
 			if(velocityMag == 0){
 				velocityMag = 400;
@@ -357,16 +410,7 @@ struct Ball{
 			}
 			
 			setVelocity(velocityMag, velocityAngle);
-
-			double deltime = 0;
-			auto currentTime = std::chrono::high_resolution_clock::now();
-			deltime = std::chrono::duration<float>(currentTime - lastTime).count();
-			if(deltime > 0.3){
-				deltime = 0;
-			}
-			// debug(currenttime - lasttime)
-			lastTime = currentTime;
-			// debug(deltime)
+			
 			
 			posX += velocity.first * deltime;
 			posY += velocity.second * deltime;
@@ -389,6 +433,7 @@ struct Ball{
 		
 		
 		// changePos();
+		setColor();
 		checkScreen();
 		checkColWithPaddle();
 		checkColWithBrick();
@@ -402,9 +447,56 @@ struct Ball{
 	}
 };
 
-
-
 Ball ball;
+
+
+void doPowerUp(int type){
+	switch (type)
+	{
+	case 1:
+		paddle.width=max(paddle.width/1.5, basePaddleWidth/2.25);
+		break;
+	case 2:
+		paddle.width=min(paddle.width*1.5, basePaddleWidth*2.25);
+		break;
+	default:
+		break;
+	}
+}
+
+struct PowerUp{
+	double posX;
+	double posY;
+	int type = 1;
+	int isDestroyed = 0;
+	double width = 50;
+	double height = 20;
+	double velY =100; 
+
+	void checkColWithPaddle(){
+		if(posY <= paddle.posY+paddle.height/2 && posY+height>=paddle.posY-paddle.height/2 && paddle.posX-paddle.width/2<=posX+width-10 && posX+10<=paddle.posX+paddle.width/2){
+			doPowerUp(type);
+			isDestroyed = 1;
+		}
+	}
+	void changePos(double deltime){
+		checkColWithPaddle();
+		posY -= velY * deltime;
+	}
+};
+vector<PowerUp>powerups;
+
+void powerupsRender(){
+	for(auto it = powerups.begin(); it!=powerups.end();){
+		if(it->isDestroyed){
+			it = powerups.erase(it);
+			continue;
+		}
+		iFilledRectangle(it->posX, it->posY, it->width, it->height);
+		it++;
+	}
+}
+
 
 int numberOfInvincible = 0;
 
@@ -428,12 +520,18 @@ void initBrickgrid(int level){
 	case 2:
 		grid = level2grid;
 		break;
+	case 3:
+		grid = level3grid;
+		break;
 	
 	default:
 		break;
 	}
+
+	int i = 0, j = 0;
 	for(auto row:grid){
 		int startcol = 0;
+		j = 0;
 		for(auto col:row){
 			Brick temp;
 			switch (col)
@@ -457,20 +555,30 @@ void initBrickgrid(int level){
 				temp.setColor();
 				temp.posX = startcol+brickgap;
 				temp.posY = startrow-brickgap;
+				temp.row = i;
+				temp.col = j;
 				temp.type = col;
 				temp.width = brickwidth;
 				temp.height = brickheight;
 				currentBricks.push_back(temp);
+				
 			}
 			
 			startcol += (brickgap*2 + brickwidth);
+			j++;
 		}
 		startrow -= (brickgap*2 + brickheight);
+		i++;
 	}
+	
 }
 
 void brickgridRender(){
-	for(auto brick:currentBricks){
+	for(auto it= currentBricks.begin(); it!=currentBricks.end();it++){
+		auto brick = *it;
+		if(brick.health<=0){
+			continue;
+		}
 		mySetColor(brick.color1);
 		double xa1[] = {brick.posX, brick.posX+brick.width, brick.posX};
 		double ya1[] = {brick.posY, brick.posY-brick.height, brick.posY-brick.height};
@@ -484,14 +592,62 @@ void brickgridRender(){
 	}
 }
 
-vector<Brick>::iterator hitbrick(vector<Brick>::iterator hittedbrick){
+vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick){
+	if(hittedbrick->health<=0){
+		return ++hittedbrick;
+	}
+	// debug(hittedbrick->health);
 	hittedbrick->health--;
+	// debug(hittedbrick->health);
+	
+	if(ball.type == 1 && hittedbrick->type!=3){			//Fire Ball
+		hittedbrick->health--;
+		int i = hittedbrick->row;
+		int j = hittedbrick->col;
+		vector<pair<int,int>> surrounding = {{-1,-1}, {-1,0}, {-1,1}, {0,-1}, {0,1}, {1,-1}, {1,0},{1,1}};
+		for(auto el:surrounding){
+			for(int ii = 0; ii<currentBricks.size(); ii++){
+				// debug(hittedbrick->health);
+				// auto itt = it;
+				// it++;
+				auto& brick = currentBricks[ii];
+				if(brick.row==i+el.first && brick.col==j+el.second){
+					// debug(brick.row)
+					// debug(brick.col)
+					// debug(hittedbrick->health);
+					// debug(itt->row)
+					// debug(itt->col)
+					// debug(currentBricks[ii].health)
+					brick.health-=2;
+					// debug(currentBricks[ii].health)
+					// debug(hittedbrick->health);
+					// if(itt->health<=0){
+					// 	currentBricks.erase(itt);
+					// 	debug(hittedbrick->health);
+					// }else{
+					// 	itt->settype();
+					// 	itt->setColor();
+					// }
+				}
+			}
+			
+		}
+	}
+	// debug(hittedbrick->health)
+	if(hittedbrick->health<=0){
+		PowerUp powerup;
+		powerup.posX = hittedbrick->posX + hittedbrick->width/2 - powerup.width/2;
+		powerup.posY = hittedbrick->posY - powerup.height;
+		powerups.push_back(powerup);
+		return currentBricks.erase(hittedbrick);
+	}else{
+		// debug(hittedbrick->health);
+		hittedbrick->settype();
+		hittedbrick->setColor();
+		++hittedbrick;
+		return hittedbrick;
 
-	if(hittedbrick->health==0)return currentBricks.erase(hittedbrick);
-	hittedbrick->settype();
-	hittedbrick->setColor();
-	++hittedbrick;
-	return hittedbrick;
+	}
 }
 
 
@@ -500,16 +656,22 @@ void levelinit(){
 	paddle = paddletemp;
 	Ball balltemp;
 	ball = balltemp;
+	powerups.clear();
+
+}
+
+void rendermenu(){
+
 }
 
 
 void renderLevel(int level){
 	switch (level)
 	{
-	case 0:
-		
+	case 0: //main menu
+		rendermenu();
 		break;
-	case 1:
+	case 1:  //level1
 		iShowBMP(0,0,"sprites/Backgrounds/aiback2.bmp");
 		if(!gamePlaying){
 			initBrickgrid(level);
@@ -524,8 +686,9 @@ void renderLevel(int level){
 		paddle.Render();
 		ball.Render();
 		brickgridRender();
+		powerupsRender();
 		break;
-	case 2:
+	case 2:  //level2
 		iShowBMP(0,0,"sprites/Backgrounds/aiback.bmp");
 		if(!gamePlaying){
 			initBrickgrid(level);
@@ -539,6 +702,23 @@ void renderLevel(int level){
 		paddle.Render();
 		ball.Render();
 		brickgridRender();
+		powerupsRender();
+		break;
+	case 3:  //level3
+		iShowBMP(0,0,"sprites/Backgrounds/aiback.bmp");
+		if(!gamePlaying){
+			initBrickgrid(level);
+			levelinit();
+			gamePlaying = 1;
+		}
+		else if(currentBricks.size()-numberOfInvincible==0){
+			gamePlaying = 0;
+			
+		}
+		paddle.Render();
+		ball.Render();
+		brickgridRender();
+		powerupsRender();
 		break;
 	
 	default:
@@ -555,15 +735,15 @@ void iDraw() {
 	iClear();
 
 	
-	iSetColor(20, 200, 200);
-	iFilledCircle(x, y, 50);
+	// iSetColor(20, 200, 200);
+	// iFilledCircle(x, y, 50);
 	
-	//iFilledRectangle(10, 30, 20, 20);
+	// //iFilledRectangle(10, 30, 20, 20);
 	
-	iSetColor(20, 200, 0);
+	// iSetColor(20, 200, 0);
 	
-	iText(40, 40, "Hi, I am iGraphics");
-	iShowBMP2(10, 20, "sprites/ballspr/ball2.bmp",0);
+	// iText(40, 40, "Hi, I am iGraphics");
+	// iShowBMP2(10, 20, "sprites/ballspr/ball2.bmp",0);
 	// iRectangle(100, 100, 100, 20);
 
 	currentColor.set(20,200,0);
@@ -602,11 +782,11 @@ void iMouse(int button, int state, int mx, int my) {
 		ball.launched = 1;
 		
 	}
-	if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
-		//place your codes here
-		x -= 10;
-		y -= 10;
-	}
+	// if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
+	// 	//place your codes here
+	// 	x -= 10;
+	// 	y -= 10;
+	// }
 }
 
 /*
@@ -636,6 +816,8 @@ void iSpecialKeyboard(unsigned char key) {
 	}
 	//place your codes for other keys here
 }
+
+
 int i = 0;
 void myfunc(){
 	
@@ -652,12 +834,26 @@ void myfunc(){
 }
 
 void SceneUpdater(){
+	static auto lastTime = lastTimeGlobal;
+	double deltime = 0;
+	auto currentTime = std::chrono::high_resolution_clock::now();
+	deltime = std::chrono::duration<float>(currentTime - lastTime).count();
+	// if(deltime > 0.3){
+	// 	deltime = 0;
+	// }
+	// debug(currenttime - lasttime)
+	lastTime = currentTime;
+	// debug(deltime)
 	if(ball.launched){
 		ball.checkScreen();
 		ball.checkColWithPaddle();
 		ball.checkColWithBrick();
-		ball.changePos();
+		ball.changePos(deltime);
 	}
+	for(auto& powerup:powerups){
+		powerup.changePos(deltime);
+	}
+	
 }
 
 
@@ -670,7 +866,7 @@ int main() {
 	//place your own initialization codes here.
 	// iSetTimer(1000, myfunc);
 	iSetTimer(delTime1, SceneUpdater);
-	lastTime = std::chrono::high_resolution_clock::now();
+	lastTimeGlobal = std::chrono::high_resolution_clock::now();
 	currentColor.set(255,255,255);
 	
 	iInitialize(1280, 760, "DX-Ball");
