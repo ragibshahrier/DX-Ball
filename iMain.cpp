@@ -96,7 +96,7 @@ void mySetColor(Color col, double alpha = 1){
 }
 
 int randomgen(int lo, int hi){
-	srand(time(0));
+	// srand(time(0));
 	int ans = rand()%(hi-lo+1) + lo;
 	return ans;
 }
@@ -847,6 +847,7 @@ vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick){
 		PowerUp powerup;
 		powerup.posX = hittedbrick->posX + hittedbrick->width/2 - powerup.width/2;
 		powerup.posY = hittedbrick->posY - powerup.height;
+		// srand(time(0));
 		powerup.type = randomPowerUpGen();
 		powerup.setColor();
 		powerups.push_back(powerup);
@@ -1269,6 +1270,7 @@ void GameManager(){
 int main() {
 	//place your own initialization codes here.
 	// iSetTimer(1000, myfunc);
+	srand(time(0));
 	iSetTimer(delTime1, SceneUpdater);
 	iSetTimer(1000, timePenalty);
 	lastTimeGlobal = std::chrono::high_resolution_clock::now();

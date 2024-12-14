@@ -691,6 +691,11 @@ void mouseHandlerFF(int button, int state, int x, int y)
     glFlush();
 }
 
+void reshapeCallback(int width, int height) {
+    glutReshapeWindow(iScreenWidth, iScreenHeight);
+}
+
+
 void iInitialize(int width=500, int height=500, char *title="iGraphics")
 {
     iScreenHeight = height;
@@ -728,6 +733,8 @@ void iInitialize(int width=500, int height=500, char *title="iGraphics")
      // Enable blending
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    glutReshapeFunc(reshapeCallback);
 
     glutMainLoop();
 }
