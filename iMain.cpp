@@ -47,6 +47,8 @@ string playerName = "";
 int maxPlayerNameLength = 6;
 int soundOn = 1;
 int backgroundOn = 1;
+int musicOn = 1;
+int musicPlaying = 0;
 
 vector<char*>gameplaybackground={
 	"", // for 1-based indexing
@@ -135,6 +137,7 @@ void readData(vector<pair<int, string>>& v, int mode) {
         }
     }
 	fclose(datacontent);
+	sort(v.begin(), v.end(), greater<pair<int,string>>());
 }
 
 void updateLocalData(vector<pair<int,string>>&v, pair<int,string>newPlayer){
@@ -814,7 +817,7 @@ void gameStatRender(){
 
 vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick){
 	if(hittedbrick->type==3 && soundOn)PlaySound(TEXT("music/metalhit2.wav"), NULL, SND_ASYNC);
-	else if(ball.type==1 && soundOn)PlaySound(TEXT("music/FireballHit2.wav"), NULL, SND_ASYNC);
+	else if(ball.type==1 && soundOn)PlaySound(TEXT("music/FireballHit3.wav"), NULL, SND_ASYNC);
 	else if(soundOn)PlaySound(TEXT("music/normalhit.wav"), NULL, SND_ASYNC);
 	
 	if(hittedbrick->health<=0){
@@ -831,27 +834,9 @@ vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick){
 		vector<pair<int,int>> surrounding = {{-1,-1}, {-1,0}, {-1,1}, {0,-1}, {0,1}, {1,-1}, {1,0},{1,1}};
 		for(auto el:surrounding){
 			for(int ii = 0; ii<currentBricks.size(); ii++){
-				// debug(hittedbrick->health);
-				// auto itt = it;
-				// it++;
 				auto& brick = currentBricks[ii];
 				if(brick.row==i+el.first && brick.col==j+el.second){
-					// debug(brick.row)
-					// debug(brick.col)
-					// debug(hittedbrick->health);
-					// debug(itt->row)
-					// debug(itt->col)
-					// debug(currentBricks[ii].health)
 					brick.health-=2;
-					// debug(currentBricks[ii].health)
-					// debug(hittedbrick->health);
-					// if(itt->health<=0){
-					// 	currentBricks.erase(itt);
-					// 	debug(hittedbrick->health);
-					// }else{
-					// 	itt->settype();
-					// 	itt->setColor();
-					// }
 				}
 			}
 			
@@ -944,7 +929,12 @@ void renderLeaderBoard(){
 }
 
 void rendermenu(int state){
+
 	if(backgroundOn)iShowBMP(0,0,gamemenubackground[0]);
+	if(musicOn && !musicPlaying){
+		musicPlaying = 1;
+		PlaySound(TEXT("music/bgMusic.wav"), NULL, SND_LOOP|SND_ASYNC);	
+	}
 	
 	iSetColor(255,255,255);
 	switch (state)
@@ -1079,7 +1069,7 @@ void iPassiveMouseMove(int mx, int my){
 	*/
 void iMouse(int button, int state, int mx, int my) {
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-		if(soundOn && !gamePlaying)PlaySound(TEXT("music/click.wav"), NULL, SND_ASYNC);
+		if(soundOn && !musicPlaying)PlaySound(TEXT("music/click.wav"), NULL, SND_ASYNC);
 		//place your codes here
 		// printf("x = %d, y= %d\n",mx,my);
 		double x = mx;
@@ -1200,8 +1190,14 @@ void iKeyboard(unsigned char key) {
 	*/
 void iSpecialKeyboard(unsigned char key) {
 
-	if (key == GLUT_KEY_END) {
-		exit(0);
+	if (key == GLUT_KEY_F1) {
+		musicOn ^= 1;
+	}
+	if (key == GLUT_KEY_F2) {
+		backgroundOn ^= 1;
+	}
+	if (key == GLUT_KEY_F3) {
+		soundOn ^= 1;
 	}
 	//place your codes for other keys here
 }
@@ -1234,6 +1230,10 @@ void SceneUpdater(){
 	lastTime = currentTime;
 	// debug(deltime)
 	if(gamePlaying){
+		if(musicPlaying){
+			musicPlaying=0;
+			PlaySound(0,0,0);
+		}
 		if(ball.launched){
 			ball.checkScreen();
 			ball.checkColWithPaddle();
@@ -1243,13 +1243,22 @@ void SceneUpdater(){
 		for(auto& powerup:powerups){
 			powerup.changePos(deltime);
 		}
-
+	}
+	// if(musicOn && !musicPlaying){
+	// 	cout<<1<<'\n';
+	// 	// 
+	// 	// musicPlaying = 1;
+	// }
+	if(!musicOn && musicPlaying){
+		PlaySound(0,0,0);
+		musicPlaying = 0;
 	}
 	
 }
 
 void timePenalty(){
 	if(gamePlaying)score = max(0, score-10);
+	// cout<<powerups.size()<<endl;
 }
 
 void GameManager(){
@@ -1269,8 +1278,8 @@ int main() {
 	readData(datatext[2], 2);
 	readData(datatext[3], 3);
 	
+	
 	iInitialize(1280, 760, "DX-Ball");
-
 	GameManager();
 	return 0;
 }
