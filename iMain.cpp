@@ -1,8 +1,6 @@
 #include<bits/stdc++.h>
 # include "iGraphics.h"
 
-// # include "inc.h"
-// # include "paddle.h"
 using namespace std;
 
 #define gp " "
@@ -25,18 +23,37 @@ const double PI = 3.14159;
 #define screenheight 760
 #define basePaddleWidth 150
 #define basePaddleHeight 15
+#define baseBallVelocity 350
 
-// const double delTime1 = 20;
 const double delTime1 = 15;
 
 double frame = 0;
 
 
 std::chrono::time_point<std::chrono::high_resolution_clock> lastTimeGlobal;
-time_t currenttime;
 
-int currentState=2;
+int currentState=1;
 int gamePlaying = 0;
+int won = 0;
+int lives = 3;
+int dead = 0;
+
+vector<char*>gameplaybackground={
+	"", // for 1-based indexing
+	"sprites/Backgrounds/aiback.bmp",
+	"sprites/Backgrounds/aiback.bmp",
+	"sprites/Backgrounds/aiback2.bmp",
+};
+vector<char*>gamemenubackground={
+	"sprites/Backgrounds/menuback.bmp"
+};
+vector<char*>menusprites={
+	"sprites/Menuspr/Menu.bmp",
+	"sprites/Menuspr/Levels.bmp",
+	"sprites/Menuspr/Levelcomplete.bmp",
+	"sprites/Menuspr/GameOver.bmp",
+};
+
 
 
 struct Color{
@@ -45,9 +62,14 @@ struct Color{
 		r = red;
 		g = green;
 		b = blue;
-
 	}	
 };
+Color currentColor;
+
+void mySetColor(Color col, double alpha = 1){
+	iSetColor(col.r,col.g,col.b, alpha);
+}
+
 
 
 vector<vector<int>> level1grid = 
@@ -80,12 +102,6 @@ vector<vector<int>> level3grid =
 
 
 
-Color currentColor;
-
-
-void mySetColor(Color col){
-	iSetColor(col.r, col.g,col.b);
-}
 
 
 
@@ -184,9 +200,9 @@ struct Paddle{
 
 
 };
-
-
 Paddle paddle;
+
+
 int cc = 0;
 struct Ball{
 
@@ -248,6 +264,7 @@ struct Ball{
 		}
 		if(posY+radius<0){
 			initSet = 0;
+			dead = 1;
 		}
 		velocityAngle = -floor(velocityAngle/(2*PI))*2*PI + velocityAngle; 
 	}
@@ -405,7 +422,7 @@ struct Ball{
 	void changePos(double deltime){
 		if(launched){
 			if(velocityMag == 0){
-				velocityMag = 400;
+				velocityMag = baseBallVelocity;
 				velocityAngle = PI/2;
 			}
 			
@@ -428,6 +445,10 @@ struct Ball{
 			launched = 0;
 			// velocityMag = 0;
 			velocityAngle = PI/2;
+			if(dead){
+				lives--;
+				dead = 0;
+			}
 
 		}
 		
@@ -453,12 +474,33 @@ Ball ball;
 void doPowerUp(int type){
 	switch (type)
 	{
-	case 1:
+	case 1: //Shrink paddle
 		paddle.width=max(paddle.width/1.5, basePaddleWidth/2.25);
 		break;
-	case 2:
+	case 2: //Expand paddle
 		paddle.width=min(paddle.width*1.5, basePaddleWidth*2.25);
 		break;
+	case 3:  //Fire Ball
+		ball.type=1;
+		break;
+	case 4:  //Normal Ball
+		ball.type=0;
+		break;
+	case 5:  //Fast Ball
+		ball.velocityMag=min(baseBallVelocity*1.55, ball.velocityMag*1.5);
+		break;
+	case 6:  //Slow Ball
+		ball.velocityMag=min(baseBallVelocity/1.5, ball.velocityMag/1.5);
+		break;
+	case 7:  //kill Ball
+		{Paddle paddletemp;
+		paddle = paddletemp;
+		Ball balltemp;
+		ball = balltemp;
+		dead = 1;
+		ball.initSet = 0;
+		break;}
+
 	default:
 		break;
 	}
@@ -467,11 +509,42 @@ void doPowerUp(int type){
 struct PowerUp{
 	double posX;
 	double posY;
-	int type = 1;
+	int type = 5;
 	int isDestroyed = 0;
 	double width = 50;
 	double height = 20;
 	double velY =100; 
+	Color color;
+
+	void setColor(){
+		switch (type)
+		{
+		case 1:
+			color = {65, 105, 225};
+			break;
+		case 2:
+			color = {50, 205, 50};
+			break;
+		case 3:
+			color = {255, 165, 0};
+			break;
+		case 4:
+			color = {255, 255, 255};
+			break;
+		case 5:
+			color = {255, 223, 0};
+			break;
+		case 6:
+			color = {153, 102, 255};
+			break;
+		case 7:
+			color = {220, 20, 60};
+			break;
+		
+		default:
+			break;
+		}
+	}
 
 	void checkColWithPaddle(){
 		if(posY <= paddle.posY+paddle.height/2 && posY+height>=paddle.posY-paddle.height/2 && paddle.posX-paddle.width/2<=posX+width-10 && posX+10<=paddle.posX+paddle.width/2){
@@ -652,6 +725,8 @@ vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick){
 
 
 void levelinit(){
+	won = 0;
+	lives = 3;
 	Paddle paddletemp;
 	paddle = paddletemp;
 	Ball balltemp;
@@ -660,8 +735,57 @@ void levelinit(){
 
 }
 
-void rendermenu(){
+void rendermenu(int state){
+	iShowBMP(0,0,gamemenubackground[0]);
+	
+	iSetColor(255,255,255);
+	switch (state)
+	{
+	case 0:
+		iSetColor(0,0,0,0.5);
+		iFilledRectangle(0,0,screenwidth, screenheight);
+		iShowBMP2(400,100,menusprites[0], 0);
+		break;
+	case -1:
+		iSetColor(0,0,0,0.5);
+		iFilledRectangle(0,0,screenwidth, screenheight);
+		iShowBMP2(260,100,menusprites[1], 0);
+		break;
+	case -2:
+		iSetColor(0,0,0,0.5);
+		iFilledRectangle(0,0,screenwidth, screenheight);
+		iShowBMP2(400,100,menusprites[0], 0);
+		break;
+	case -3:
+		iSetColor(0,0,0,0.5);
+		iFilledRectangle(0,0,screenwidth, screenheight);
+		iShowBMP2(400,100,menusprites[0], 0);
+		break;
+	
+	
+	default:
+		break;
+	}
+	
+	// iText(800,400, "1245670", GLUT_BITMAP_TIMES_ROMAN_24);
+}
 
+void rendergameplay(int level){
+	iShowBMP(0,0,gameplaybackground[level]);
+	if(!gamePlaying){
+		initBrickgrid(level);
+		levelinit();
+		gamePlaying = 1;
+	}
+	else if(currentBricks.size()-numberOfInvincible==0 || lives<=0){
+		gamePlaying = 0;
+		currentState=10*currentState+1;
+		if(lives>0)won = 1;
+	}
+	paddle.Render();
+	ball.Render();
+	brickgridRender();
+	powerupsRender();
 }
 
 
@@ -669,58 +793,28 @@ void renderLevel(int level){
 	switch (level)
 	{
 	case 0: //main menu
-		rendermenu();
-		break;
-	case 1:  //level1
-		iShowBMP(0,0,"sprites/Backgrounds/aiback2.bmp");
-		if(!gamePlaying){
-			initBrickgrid(level);
-			levelinit();
-			gamePlaying = 1;
-		}
-		else if(currentBricks.size()-numberOfInvincible==0){
-			gamePlaying = 0;
-			currentState++;
-			
-		}
-		paddle.Render();
-		ball.Render();
-		brickgridRender();
-		powerupsRender();
-		break;
-	case 2:  //level2
-		iShowBMP(0,0,"sprites/Backgrounds/aiback.bmp");
-		if(!gamePlaying){
-			initBrickgrid(level);
-			levelinit();
-			gamePlaying = 1;
-		}
-		else if(currentBricks.size()-numberOfInvincible==0){
-			gamePlaying = 0;
-			
-		}
-		paddle.Render();
-		ball.Render();
-		brickgridRender();
-		powerupsRender();
-		break;
-	case 3:  //level3
-		iShowBMP(0,0,"sprites/Backgrounds/aiback.bmp");
-		if(!gamePlaying){
-			initBrickgrid(level);
-			levelinit();
-			gamePlaying = 1;
-		}
-		else if(currentBricks.size()-numberOfInvincible==0){
-			gamePlaying = 0;
-			
-		}
-		paddle.Render();
-		ball.Render();
-		brickgridRender();
-		powerupsRender();
+	case -1:
+	case -2:
+	case -3:
+		rendermenu(level);
 		break;
 	
+	case 1:  //level1
+	case 2:  //level2
+	case 3:  //level3
+		rendergameplay(level);
+		break;
+	case 11:
+	case 21:
+	case 31:
+		iShowBMP(0,0,gameplaybackground[currentState/10]);
+		iSetColor(0,0,0,0.5);
+		iFilledRectangle(0,0,screenwidth, screenheight);
+		
+		if(won)iShowBMP2(365,150,menusprites[2], 0);
+		else iShowBMP2(365,150,menusprites[3], 0);
+		
+		break;
 	default:
 		break;
 	}
@@ -775,11 +869,68 @@ void iPassiveMouseMove(int mx, int my){
 void iMouse(int button, int state, int mx, int my) {
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
 		//place your codes here
-		//	printf("x = %d, y= %d\n",mx,my);
-		// x += 10;
-		// y += 10;
+		printf("x = %d, y= %d\n",mx,my);
+		double x = mx;
+		double y = my;
+		switch (currentState)
+		{
+		case -1:
+			if(430<=mx && mx<=540 && 375<=my && my<=495){
+				currentState = 1;
+			}
+			if(590<=mx && mx<=705 && 375<=my && my<=495){
+				currentState = 2;
+			}
+			if(760<=mx && mx<=870 && 375<=my && my<=495){
+				currentState = 3;
+			}
+			if(550<=mx && mx<=715 && 145<=my && my<=225){
+				currentState = 0;
+			}
+			break;
+		case 0:
+			if(490<=mx && mx<=775 && 450<=my && my<=520){
+				currentState = -1;
+			}
+			if(490<=mx && mx<=775 && 340<=my && my<=410){
+				currentState = -2;
+			}
+			if(490<=mx && mx<=775 && 220<=my && my<=290){
+				currentState = -3;
+			}
+			if(490<=mx && mx<=775 && 110<=my && my<=180){
+				exit(0);
+			}
+			break;
+			
 
-		ball.launched = 1;
+		case 1:
+		case 2:
+		case 3:
+			ball.launched = 1;
+			break;
+		
+		case 11:
+		case 21:
+		case 31:
+			if(490<=mx && mx<=785 && 275<=my && my<=335){
+				currentState;
+			}
+			if(490<=mx && mx<=630 && 215<=my && my<=270){
+				currentState /= 10;
+			}
+			if(640<=mx && mx<=785 && 215<=my && my<=270){
+				currentState = 0;
+			}
+			
+			
+			break;
+		
+		default:
+			break;
+		}
+		cout<<x<<" "<<y<<endl;
+		
 		
 	}
 	// if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {

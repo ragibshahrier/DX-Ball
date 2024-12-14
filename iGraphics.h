@@ -601,7 +601,7 @@ void iUnRotate()
     glPopMatrix();
 }
 
-void iSetColor(double r, double g, double b)
+void iSetColor(double r, double g, double b, double a = 1)
 {
     double mmx;
     mmx = r;
@@ -613,7 +613,8 @@ void iSetColor(double r, double g, double b)
         g /= mmx;
         b /= mmx;
     }
-    glColor3f(r, g, b);
+    // glColor3f(r, g, b);
+    glColor4f(r,g,b,a);
 }
 
 void iDelay(int sec)
@@ -723,6 +724,10 @@ void iInitialize(int width=500, int height=500, char *title="iGraphics")
     //
     glAlphaFunc(GL_GREATER,0.0f);
     glEnable(GL_ALPHA_TEST);
+
+     // Enable blending
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     glutMainLoop();
 }
