@@ -1,4 +1,6 @@
 #include<bits/stdc++.h>
+#include<cstdlib>
+#include <windows.h>
 # include "iGraphics.h"
 
 using namespace std;
@@ -12,7 +14,7 @@ using namespace std;
 #ifdef DEBG
 #define debug(n) cout<<__LINE__<<gp<<#n<<gp<<n<<'\n';
 #define debugc(a) cout<<__LINE__<<gp<<#a<<gp<<'['<<gp;for(auto el:a){cout<<el<<gp;}cout<<']'<<'\n';
-#define debugcc(a) cout<<__LINE__<<gp<<#a<<gp<<'['<<gp;for(auto el:a){cout<<'{'<<gp<<el.ff<<','<<el.ss<<gp<<'}'<<gp;}cout<<']'<<'\n';
+#define debugcc(a) cout<<__LINE__<<gp<<#a<<gp<<'['<<gp;for(auto el:a){cout<<'{'<<gp<<el.first<<','<<el.second<<gp<<'}'<<gp;}cout<<']'<<'\n';
 #endif
 
 
@@ -32,11 +34,19 @@ double frame = 0;
 
 std::chrono::time_point<std::chrono::high_resolution_clock> lastTimeGlobal;
 
-int currentState=1;
+int currentState=0;
 int gamePlaying = 0;
 int won = 0;
 int lives = 3;
 int dead = 0;
+int score = 0;
+int reward = 100;
+double factor = 1;
+int numberOfLeaders = 3;
+string playerName = "";
+int maxPlayerNameLength = 6;
+int soundOn = 1;
+int backgroundOn = 1;
 
 vector<char*>gameplaybackground={
 	"", // for 1-based indexing
@@ -52,9 +62,22 @@ vector<char*>menusprites={
 	"sprites/Menuspr/Levels.bmp",
 	"sprites/Menuspr/Levelcomplete.bmp",
 	"sprites/Menuspr/GameOver.bmp",
+	"sprites/Menuspr/AboutPage.bmp",
+	"sprites/Menuspr/Leaderboard.bmp"
+};
+vector<char*>iconsprites={
+	"sprites/Menuspr/Quit2.bmp"
+};
+vector<wstring>soundEffects={
+	L"music/FireballHit2.wav",
+	L"music/metalhit.wav"
 };
 
 
+vector<pair<int,string>> datatext[10];
+
+
+vector<int>powerUpWeight = {10,10,10,10,10,10,10};
 
 struct Color{
 	int r,g,b;
@@ -70,7 +93,71 @@ void mySetColor(Color col, double alpha = 1){
 	iSetColor(col.r,col.g,col.b, alpha);
 }
 
+int randomgen(int lo, int hi){
+	srand(time(0));
+	int ans = rand()%(hi-lo+1) + lo;
+	return ans;
+}
 
+int randomPowerUpGen() {
+    int sum = accumulate(powerUpWeight.begin(), powerUpWeight.end(), 0);
+    
+    int ran = randomgen(0, sum - 1);
+    
+    int sz = powerUpWeight.size();
+    for (int i = 0; i < sz; i++) {
+        if (ran < powerUpWeight[i]) {
+            return i+1; 
+        }
+        ran -= powerUpWeight[i];
+	}
+    throw std::runtime_error("Logic error in randomPowerUpGen");
+}
+
+void readData(vector<pair<int, string>>& v, int mode) {
+	FILE* datacontent;
+	if(mode==1) datacontent = fopen("./GameData/easyLd.txt", "r"); 
+	if(mode==2) datacontent = fopen("./GameData/mediumLd.txt", "r"); 
+	if(mode==3) datacontent = fopen("./GameData/hardLd.txt", "r"); 
+	if (!datacontent) {
+        cerr << "Error opening file './GameData/easyLd.txt'" << endl;
+        return;
+    }
+
+    char buffer[100];
+    v.resize(numberOfLeaders);
+    for (int i = 0; i < numberOfLeaders; i++) {
+        if (fscanf(datacontent, "%s %d", buffer, &v[i].first) == 2) {
+            v[i].second = string(buffer); 
+        } else {
+            cerr << "Error reading data from file!" << endl;
+            exit(1); 
+        }
+    }
+	fclose(datacontent);
+}
+
+void updateLocalData(vector<pair<int,string>>&v, pair<int,string>newPlayer){
+	v.push_back(newPlayer);
+	sort(v.begin(),v.end(),greater<pair<int,string>>());
+	while(v.size()>numberOfLeaders)v.erase(--v.end());
+}
+
+void writeData(vector<pair<int,string>>&v, int mode){
+	FILE* datacontent;
+	if(mode==1) datacontent = fopen("./GameData/easyLd.txt", "w"); 
+	if(mode==2) datacontent = fopen("./GameData/mediumLd.txt", "w"); 
+	if(mode==3) datacontent = fopen("./GameData/hardLd.txt", "w");
+	if (!datacontent) {
+        cerr << "Error opening file './GameData/easyLd.txt'" << endl;
+        return;
+    }
+    sort(v.begin(), v.end(),greater<pair<int,string>>());
+    for (int i = 0; i < numberOfLeaders; i++) {
+		fprintf(datacontent, "%s %d\n", v[i].second.c_str(), v[i].first);
+    }
+	fclose(datacontent);
+}
 
 vector<vector<int>> level1grid = 
 {
@@ -105,7 +192,7 @@ vector<vector<int>> level3grid =
 
 
 
-int reward = 100;
+
 
 
 
@@ -263,6 +350,8 @@ struct Ball{
 			velocityAngle = -velocityAngle;
 		}
 		if(posY+radius<0){
+			Paddle paddletemp;
+			paddle = paddletemp;
 			initSet = 0;
 			dead = 1;
 		}
@@ -423,6 +512,7 @@ struct Ball{
 		if(launched){
 			if(velocityMag == 0){
 				velocityMag = baseBallVelocity;
+				type = 0;
 				velocityAngle = PI/2;
 			}
 			
@@ -441,12 +531,15 @@ struct Ball{
 		}
 		if(initSet == 0){
 			setInitialPos();
+			type = 0;
 			initSet = 1;
 			launched = 0;
-			// velocityMag = 0;
+			velocityMag = 0;
 			velocityAngle = PI/2;
 			if(dead){
+				factor = 1;
 				lives--;
+				score/=2;
 				dead = 0;
 			}
 
@@ -475,11 +568,20 @@ void doPowerUp(int type){
 	switch (type)
 	{
 	case 1: //Shrink paddle
+		{double temp = paddle.width;
 		paddle.width=max(paddle.width/1.5, basePaddleWidth/2.25);
-		break;
+		if(abs(temp - paddle.width)>=1e-8){
+			factor*=1.5;
+		}
+		break;}
 	case 2: //Expand paddle
+		{double temp = paddle.width;
 		paddle.width=min(paddle.width*1.5, basePaddleWidth*2.25);
-		break;
+		if(abs(temp - paddle.width)>=1e-8){
+			factor/=1.5;
+			
+		}
+		break;}
 	case 3:  //Fire Ball
 		ball.type=1;
 		break;
@@ -487,11 +589,19 @@ void doPowerUp(int type){
 		ball.type=0;
 		break;
 	case 5:  //Fast Ball
-		ball.velocityMag=min(baseBallVelocity*1.55, ball.velocityMag*1.5);
-		break;
+		{double temp = ball.velocityMag;
+		ball.velocityMag=min(baseBallVelocity*1.3, ball.velocityMag*1.3);
+		if(abs(temp - paddle.width)>=1e-8){
+			factor*=1.5;	
+		}
+		break;}
 	case 6:  //Slow Ball
-		ball.velocityMag=min(baseBallVelocity/1.5, ball.velocityMag/1.5);
-		break;
+		{double temp = ball.velocityMag;
+		ball.velocityMag=max(baseBallVelocity/1.3, ball.velocityMag/1.3);
+		if(abs(temp - paddle.width)>=1e-8){
+			factor/=1.5;	
+		}
+		break;}
 	case 7:  //kill Ball
 		{Paddle paddletemp;
 		paddle = paddletemp;
@@ -520,25 +630,25 @@ struct PowerUp{
 		switch (type)
 		{
 		case 1:
-			color = {65, 105, 225};
+			color = {45, 45, 225};
 			break;
 		case 2:
-			color = {50, 205, 50};
+			color = {25, 250, 25};
 			break;
 		case 3:
-			color = {255, 165, 0};
+			color = {255, 105, 0};
 			break;
 		case 4:
 			color = {255, 255, 255};
 			break;
 		case 5:
-			color = {255, 223, 0};
+			color = {239, 255, 58};
 			break;
 		case 6:
 			color = {153, 102, 255};
 			break;
 		case 7:
-			color = {220, 20, 60};
+			color = {255, 0, 0};
 			break;
 		
 		default:
@@ -555,6 +665,9 @@ struct PowerUp{
 	void changePos(double deltime){
 		checkColWithPaddle();
 		posY -= velY * deltime;
+		if(posY < 0-height){
+			isDestroyed = 1;
+		}
 	}
 };
 vector<PowerUp>powerups;
@@ -565,6 +678,7 @@ void powerupsRender(){
 			it = powerups.erase(it);
 			continue;
 		}
+		mySetColor(it->color);
 		iFilledRectangle(it->posX, it->posY, it->width, it->height);
 		it++;
 	}
@@ -665,7 +779,44 @@ void brickgridRender(){
 	}
 }
 
+
+void scoreUpdate(){
+	score += reward * factor;
+}
+
+void gameStatRender(){
+	if(lives>=1){
+		mySetColor(paddle.color);
+		iFilledRectangle(1140, 725, 40, 10);
+	}
+	if(lives>=2){
+		mySetColor(paddle.color);
+		iFilledRectangle(1080, 725, 40, 10);
+	}
+	if(lives>=3){
+		mySetColor(paddle.color);
+		iFilledRectangle(1020, 725, 40, 10);
+	}
+
+	iShowBMP2(1200, 715, iconsprites[0], 0);
+
+	iSetColor(229,37,84);
+	char scoreboard[100] = "Score : ";
+	string scoretxt = "Score : " + to_string(score);
+	strcpy(scoreboard, scoretxt.c_str());
+	// strcat(scoreboard, itoa(score, scoretxt, 10));
+	// iText(100,725,"Score :",  GLUT_BITMAP_TIMES_ROMAN_24);
+	iText(50,725,scoreboard,  GLUT_BITMAP_TIMES_ROMAN_24);
+
+
+
+}
+
 vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick){
+	if(hittedbrick->type==3 && soundOn)PlaySound(TEXT("music/metalhit2.wav"), NULL, SND_ASYNC);
+	else if(ball.type==1 && soundOn)PlaySound(TEXT("music/FireballHit2.wav"), NULL, SND_ASYNC);
+	else if(soundOn)PlaySound(TEXT("music/normalhit.wav"), NULL, SND_ASYNC);
+	
 	if(hittedbrick->health<=0){
 		return ++hittedbrick;
 	}
@@ -711,7 +862,10 @@ vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick){
 		PowerUp powerup;
 		powerup.posX = hittedbrick->posX + hittedbrick->width/2 - powerup.width/2;
 		powerup.posY = hittedbrick->posY - powerup.height;
+		powerup.type = randomPowerUpGen();
+		powerup.setColor();
 		powerups.push_back(powerup);
+		scoreUpdate();
 		return currentBricks.erase(hittedbrick);
 	}else{
 		// debug(hittedbrick->health);
@@ -727,6 +881,8 @@ vector<Brick>::iterator hitbrick(vector<Brick>::iterator& hittedbrick){
 void levelinit(){
 	won = 0;
 	lives = 3;
+	score = 0;
+	factor = 1;
 	Paddle paddletemp;
 	paddle = paddletemp;
 	Ball balltemp;
@@ -735,8 +891,60 @@ void levelinit(){
 
 }
 
+void renderLeaderBoard(){
+	iSetColor(229,37,84);
+	char buffer[100];
+
+	strcpy(buffer,  datatext[3][0].second.c_str());
+	iText(365, 570,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[3][0].first).c_str());
+	iText(835, 570,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+	strcpy(buffer,  datatext[3][1].second.c_str());
+	iText(365, 525,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[3][1].first).c_str());
+	iText(835, 525,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+	strcpy(buffer,  datatext[3][2].second.c_str());
+	iText(365, 483,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[3][2].first).c_str());
+	iText(835, 483,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+	strcpy(buffer,  datatext[2][0].second.c_str());
+	iText(365, 410,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[2][0].first).c_str());
+	iText(835, 410,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+	strcpy(buffer,  datatext[2][1].second.c_str());
+	iText(365, 366,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[2][1].first).c_str());
+	iText(835, 366,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+	strcpy(buffer,  datatext[2][2].second.c_str());
+	iText(365, 322,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[2][2].first).c_str());
+	iText(835, 322,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+	strcpy(buffer,  datatext[1][0].second.c_str());
+	iText(365, 246,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[1][0].first).c_str());
+	iText(835, 246,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+	strcpy(buffer,  datatext[1][1].second.c_str());
+	iText(365, 203,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[1][1].first).c_str());
+	iText(835, 203,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+	strcpy(buffer,  datatext[1][2].second.c_str());
+	iText(365, 159,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+	strcpy(buffer,  to_string(datatext[1][2].first).c_str());
+	iText(835, 159,buffer, GLUT_BITMAP_TIMES_ROMAN_24);
+
+
+}
+
 void rendermenu(int state){
-	iShowBMP(0,0,gamemenubackground[0]);
+	if(backgroundOn)iShowBMP(0,0,gamemenubackground[0]);
 	
 	iSetColor(255,255,255);
 	switch (state)
@@ -754,12 +962,14 @@ void rendermenu(int state){
 	case -2:
 		iSetColor(0,0,0,0.5);
 		iFilledRectangle(0,0,screenwidth, screenheight);
-		iShowBMP2(400,100,menusprites[0], 0);
+		iShowBMP2(160,25,menusprites[5], 0);
+		
+		renderLeaderBoard();
 		break;
 	case -3:
 		iSetColor(0,0,0,0.5);
 		iFilledRectangle(0,0,screenwidth, screenheight);
-		iShowBMP2(400,100,menusprites[0], 0);
+		iShowBMP2(160,100,menusprites[4], 0);
 		break;
 	
 	
@@ -770,8 +980,10 @@ void rendermenu(int state){
 	// iText(800,400, "1245670", GLUT_BITMAP_TIMES_ROMAN_24);
 }
 
+
+
 void rendergameplay(int level){
-	iShowBMP(0,0,gameplaybackground[level]);
+	if(backgroundOn)iShowBMP(0,0,gameplaybackground[level]);
 	if(!gamePlaying){
 		initBrickgrid(level);
 		levelinit();
@@ -786,6 +998,7 @@ void rendergameplay(int level){
 	ball.Render();
 	brickgridRender();
 	powerupsRender();
+	gameStatRender();
 }
 
 
@@ -807,14 +1020,25 @@ void renderLevel(int level){
 	case 11:
 	case 21:
 	case 31:
-		iShowBMP(0,0,gameplaybackground[currentState/10]);
+		{if(backgroundOn)iShowBMP(0,0,gameplaybackground[currentState/10]);
 		iSetColor(0,0,0,0.5);
 		iFilledRectangle(0,0,screenwidth, screenheight);
 		
 		if(won)iShowBMP2(365,150,menusprites[2], 0);
 		else iShowBMP2(365,150,menusprites[3], 0);
+
+		iSetColor(255,255,255);
+		char scoretxt[100];
+		strcpy(scoretxt, to_string(score).c_str());
+		iText(650,430,scoretxt,  GLUT_BITMAP_TIMES_ROMAN_24);
+
+		string nameEditing = playerName+'_';
+		char nameEditingChar[100];
+		strcpy(nameEditingChar, nameEditing.c_str()); 
+		iText(520,355,nameEditingChar,  GLUT_BITMAP_TIMES_ROMAN_24);
+
 		
-		break;
+		break;}
 	default:
 		break;
 	}
@@ -828,21 +1052,8 @@ void iDraw() {
 	//place your drawing codes here
 	iClear();
 
-	
-	// iSetColor(20, 200, 200);
-	// iFilledCircle(x, y, 50);
-	
-	// //iFilledRectangle(10, 30, 20, 20);
-	
-	// iSetColor(20, 200, 0);
-	
-	// iText(40, 40, "Hi, I am iGraphics");
-	// iShowBMP2(10, 20, "sprites/ballspr/ball2.bmp",0);
-	// iRectangle(100, 100, 100, 20);
-
 	currentColor.set(20,200,0);
 
-	//Level 1
 	renderLevel(currentState);
 	
 }
@@ -868,8 +1079,9 @@ void iPassiveMouseMove(int mx, int my){
 	*/
 void iMouse(int button, int state, int mx, int my) {
 	if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+		if(soundOn && !gamePlaying)PlaySound(TEXT("music/click.wav"), NULL, SND_ASYNC);
 		//place your codes here
-		printf("x = %d, y= %d\n",mx,my);
+		// printf("x = %d, y= %d\n",mx,my);
 		double x = mx;
 		double y = my;
 		switch (currentState)
@@ -885,6 +1097,16 @@ void iMouse(int button, int state, int mx, int my) {
 				currentState = 3;
 			}
 			if(550<=mx && mx<=715 && 145<=my && my<=225){
+				currentState = 0;
+			}
+			break;
+		case -2:
+			if(210<=mx && mx<=344 && 58<=my && my<=125){
+				currentState = 0;
+			}
+			break;
+		case -3:
+			if(195<=mx && mx<=320 && 130<=my && my<=195){
 				currentState = 0;
 			}
 			break;
@@ -908,13 +1130,22 @@ void iMouse(int button, int state, int mx, int my) {
 		case 2:
 		case 3:
 			ball.launched = 1;
+			if(1205<=mx && mx<=1230 && 720<=my && my<=745){
+				gamePlaying = 0;
+				currentState = 0;
+				lives = 3;
+				score = 0;
+				factor = 1;
+			}
 			break;
 		
 		case 11:
 		case 21:
 		case 31:
 			if(490<=mx && mx<=785 && 275<=my && my<=335){
-				currentState;
+				updateLocalData(datatext[currentState/10], make_pair(score, playerName));
+				writeData(datatext[currentState/10], currentState/10);
+				currentState = -2;
 			}
 			if(490<=mx && mx<=630 && 215<=my && my<=270){
 				currentState /= 10;
@@ -929,7 +1160,6 @@ void iMouse(int button, int state, int mx, int my) {
 		default:
 			break;
 		}
-		cout<<x<<" "<<y<<endl;
 		
 		
 	}
@@ -945,8 +1175,16 @@ void iMouse(int button, int state, int mx, int my) {
 	key- holds the ASCII value of the key pressed.
 	*/
 void iKeyboard(unsigned char key) {
-	if (key == 'q') {
-		exit(0);
+	// if (key == 'q') {
+	// 	gamePlaying = 0;
+	// 	currentState = 0;
+	// }
+	if(currentState>10){
+		if(key == '\b'){
+			if(playerName.length()>0)playerName.pop_back();
+		}else{
+			if(playerName.length()<maxPlayerNameLength)playerName.push_back(key);
+		}
 	}
 	//place your codes for other keys here
 }
@@ -995,18 +1233,24 @@ void SceneUpdater(){
 	// debug(currenttime - lasttime)
 	lastTime = currentTime;
 	// debug(deltime)
-	if(ball.launched){
-		ball.checkScreen();
-		ball.checkColWithPaddle();
-		ball.checkColWithBrick();
-		ball.changePos(deltime);
-	}
-	for(auto& powerup:powerups){
-		powerup.changePos(deltime);
+	if(gamePlaying){
+		if(ball.launched){
+			ball.checkScreen();
+			ball.checkColWithPaddle();
+			ball.checkColWithBrick();
+			ball.changePos(deltime);
+		}
+		for(auto& powerup:powerups){
+			powerup.changePos(deltime);
+		}
+
 	}
 	
 }
 
+void timePenalty(){
+	if(gamePlaying)score = max(0, score-10);
+}
 
 void GameManager(){
 	
@@ -1017,8 +1261,13 @@ int main() {
 	//place your own initialization codes here.
 	// iSetTimer(1000, myfunc);
 	iSetTimer(delTime1, SceneUpdater);
+	iSetTimer(1000, timePenalty);
 	lastTimeGlobal = std::chrono::high_resolution_clock::now();
 	currentColor.set(255,255,255);
+
+	readData(datatext[1], 1);
+	readData(datatext[2], 2);
+	readData(datatext[3], 3);
 	
 	iInitialize(1280, 760, "DX-Ball");
 

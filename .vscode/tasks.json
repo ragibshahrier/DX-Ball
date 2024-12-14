@@ -13,6 +13,7 @@
 				"-lglut32",
 				"-lglaux",
 				"-lstdc++",
+				"-lwinmm",
 				"-w"
 			]
 		},
