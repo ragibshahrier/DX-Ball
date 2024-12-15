@@ -25,7 +25,7 @@ const double PI = 3.14159;
 #define screenheight 760
 #define basePaddleWidth 150
 #define basePaddleHeight 15
-#define baseBallVelocity 350
+#define baseBallVelocity 400
 
 const double delTime1 = 15;
 
@@ -364,7 +364,7 @@ struct Ball{
 	void checkColWithPaddle(){
 		if(!launched)return;
 		if(posX>=paddle.posX-paddle.width/2 && posX<=paddle.posX+paddle.width/2){
-			if( (posY-radius) < (paddle.posY+paddle.height/2) && (posY-radius) > (paddle.posY-paddle.height/2) ){
+			if( (posY-radius) < (paddle.posY+paddle.height/2) && (posY-radius) > (paddle.posY-paddle.height*2) ){
 				velocityAngle = -floor(velocityAngle/(2*PI))*2*PI + velocityAngle;
 				double velocityAngle2 = -velocityAngle;
 				velocityAngle2 = -floor(velocityAngle2/(2*PI))*2*PI + velocityAngle2;
@@ -593,14 +593,14 @@ void doPowerUp(int type){
 		break;
 	case 5:  //Fast Ball
 		{double temp = ball.velocityMag;
-		ball.velocityMag=min(baseBallVelocity*1.3, ball.velocityMag*1.3);
+		ball.velocityMag=min(baseBallVelocity*1.5, ball.velocityMag*2.25);
 		if(abs(temp - paddle.width)>=1e-8){
 			factor*=1.5;	
 		}
 		break;}
 	case 6:  //Slow Ball
 		{double temp = ball.velocityMag;
-		ball.velocityMag=max(baseBallVelocity/1.3, ball.velocityMag/1.3);
+		ball.velocityMag=max(baseBallVelocity/1.5, ball.velocityMag/2.25);
 		if(abs(temp - paddle.width)>=1e-8){
 			factor/=1.5;	
 		}
@@ -1245,11 +1245,10 @@ void SceneUpdater(){
 			powerup.changePos(deltime);
 		}
 	}
-	// if(musicOn && !musicPlaying){
-	// 	cout<<1<<'\n';
-	// 	// 
-	// 	// musicPlaying = 1;
-	// }
+	if(musicOn && !musicPlaying && !gamePlaying){
+		PlaySound(TEXT("music/bgMusic.wav"), NULL, SND_LOOP|SND_ASYNC);
+		musicPlaying = 1;
+	}
 	if(!musicOn && musicPlaying){
 		PlaySound(0,0,0);
 		musicPlaying = 0;
@@ -1258,7 +1257,7 @@ void SceneUpdater(){
 }
 
 void timePenalty(){
-	if(gamePlaying)score = max(0, score-10);
+	if(gamePlaying)score = max(0, score-score/100);
 	// cout<<powerups.size()<<endl;
 }
 
